@@ -3,7 +3,7 @@
 ### Installing
 Python 3.7 or higher and chrome with chromedriver are required
 ```sh
-pip install asynchcaptcha
+pip install async-hcaptcha
 ```
 
 ### Example
