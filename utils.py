@@ -21,7 +21,7 @@ def mouse_curve(start_pos, end_pos, ln):
                  start_pos[1] + choice((-1, 1)) * abs(ceil(end_pos[1]) - ceil(start_pos[1])) * 0.01 * 3)
     xys = [start_pos, control_1, control_2, end_pos]
     points = _bezier(xys, ts)
-    return points
+    return [[ceil(x), ceil(y)] for x, y, in points]
 
 async def getUrl(url, decode=True):
     async with ClientSession() as sess:
