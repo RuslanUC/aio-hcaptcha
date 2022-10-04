@@ -1,5 +1,5 @@
 chromedriver*
 __pycache__
 test_*
+test/
 .idea
-captcha_images/*.jpg

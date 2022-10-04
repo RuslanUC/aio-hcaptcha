@@ -13,13 +13,15 @@ from urllib.parse import urlparse
 from aiohttp import ClientSession
 from selenium.webdriver import Chrome, ChromeOptions
 from selenium.webdriver.chrome.service import Service
-from utils import mouse_curve, getUrl
+from asyncio import get_event_loop
+from .utils import mouse_curve, getUrl
 
 class AioHcaptcha:
-    def __init__(self, sitekey, url, captcha_callback):
+    def __init__(self, sitekey, url, captcha_callback, chromedriver_args):
         self.sitekey = sitekey
         self.url = url
         self.domain = urlparse(url).netloc
+        self.chromedriver_args = chromedriver_args
 
         self._c = None
         self._start = None
@@ -47,7 +49,7 @@ class AioHcaptcha:
             options.add_argument('--disable-gpu')
             options.add_argument('--disable-extensions')
             options.add_experimental_option('excludeSwitches', ['enable-logging'])
-            driver = Chrome(service=Service(executable_path="chromedriver.exe"), options=options)
+            driver = Chrome(service=Service(**self.chromedriver_args), options=options)
             return driver.execute_script(f"{script}\n\nreturn await hsw(\"{token}\");")
 
         return await get_event_loop().run_in_executor(ThreadPoolExecutor(4), _hsw)
@@ -368,7 +370,6 @@ class AioHcaptcha:
             "swa": 1
         })
         self._c = (await siteconfig.json())["c"]
-        print(self._c)
         captcha = await sess.post(f"https://hcaptcha.com/getcaptcha/{self.sitekey}", data={
             "v": "1f7dc62",
             "host": self.domain,
@@ -404,30 +405,3 @@ class AioHcaptcha:
 
         if r.get("pass"):
             return r["generated_pass_UUID"]
-
-async def getAnswers(question, tasklist):
-    answers = {}
-
-    tl = {str(i): list(tasklist.keys())[i] for i in range(len(tasklist.keys()))}
-    for i, k in tl.items():
-        with open(f"captcha_images/{i}.jpg", "wb") as f:
-            f.write(await getUrl(tasklist[k], False))
-
-    print(question)
-
-    for i, uuid in tl.items():
-        ans = input(f"{i}? ").lower()
-        if ans in ("1", "true"):
-            answers[uuid] = "true"
-        else:
-            answers[uuid] = "false"
-    return answers
-
-async def main():
-    solver = AioHcaptcha("a5f74b19-9e45-40e0-b45d-47ff91b7a6c2", "https://accounts.hcaptcha.com/demo", getAnswers)
-    resp = await solver.solve()
-    print(resp)
-
-if __name__ == "__main__":
-    from asyncio import get_event_loop, sleep as asleep
-    get_event_loop().run_until_complete(main())

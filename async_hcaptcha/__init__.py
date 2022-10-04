@@ -1,0 +1,1 @@
+from .asynchcaptcha import AioHcaptcha
