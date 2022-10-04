@@ -2,3 +2,4 @@ chromedriver*
 __pycache__
 test_*
 .idea
+captcha_images/*.jpg
