@@ -45,9 +45,11 @@ class AioHcaptcha:
 
         def _hsw():
             options = ChromeOptions()
-            options.add_argument('--headless')
-            options.add_argument('--disable-gpu')
-            options.add_argument('--disable-extensions')
+            options.add_argument("--headless")
+            options.add_argument("--disable-gpu")
+            options.add_argument("--disable-extensions")
+            options.add_argument("--no-sandbox")
+            options.add_argument("--disable-dev-shm-usage")
             options.add_experimental_option('excludeSwitches', ['enable-logging'])
             driver = Chrome(service=Service(**self.chromedriver_args), options=options)
             return driver.execute_script(f"{script}\n\nreturn await hsw(\"{token}\");")
@@ -155,8 +157,8 @@ class AioHcaptcha:
                     "platform": "Win32",
                     "product": "Gecko",
                     "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/106.0.0.0 Safari/537.36",
-                    "language": "ru-RU",
-                    "languages": ["ru-RU", "ru", "en-US", "en", "uk"],
+                    "language": "en-US",
+                    "languages": ["en-US", "en"],
                     "onLine": True,
                     "webdriver": False,
                     "bluetooth": {},
