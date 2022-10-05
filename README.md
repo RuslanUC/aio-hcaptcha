@@ -42,6 +42,21 @@ if __name__ == "__main__":
 
 ```
 
+### Automatically solved example
+```py
+from async_hcaptcha import AioHcaptcha
+
+async def main():
+    solver = AioHcaptcha("a5f74b19-9e45-40e0-b45d-47ff91b7a6c2", "https://accounts.hcaptcha.com/demo",
+                         {"executable_path": "chromedriver.exe"})
+    resp = await solver.solve()
+    print(resp)
+
+if __name__ == "__main__":
+    from asyncio import get_event_loop, sleep as asleep
+    get_event_loop().run_until_complete(main())
+```
+
 # TODO
   - Make hsw solving without selenium
   - Add custom parameters support (captcha_rqdata)
