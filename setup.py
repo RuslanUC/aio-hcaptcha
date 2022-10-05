@@ -2,8 +2,12 @@ from setuptools import setup
 from os.path import join, dirname
 
 requirements = [
-    "aiohttp>=3.8.1",
-    "selenium>=4.1.5",
+    "aiohttp~=3.8.1",
+    "selenium~=4.1.5",
+    "opencv-python~=4.5.5.62",
+    "numpy==1.21.5",
+    "scikit-image~=0.19.3",
+    "pyyaml~=6.0",
 ]
 
 setup(
