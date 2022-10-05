@@ -211,9 +211,9 @@ class ModelHub:
             return True
         return False
 
-    def match_net(self):
+    async def match_net(self):
         if not self.net:
-            self.pull_model()
+            await self.pull_model()
             self.register_model()
         return self.net
 
@@ -238,7 +238,7 @@ class ResNetFactory(ModelHub):
         super().__init__(_onnx_prefix, _name, _dir_model)
         self.register_model()
 
-    def classifier(self, img_stream, feature_filters: Union[Callable, List[Callable]] = None):
+    async def classifier(self, img_stream, feature_filters: Union[Callable, List[Callable]] = None):
         img_arr = np.frombuffer(img_stream, np.uint8)
         img = cv2.imdecode(img_arr, flags=1)
 
@@ -255,7 +255,7 @@ class ResNetFactory(ModelHub):
         img = cv2.resize(img, (64, 64))
         blob = cv2.dnn.blobFromImage(img, 1 / 255.0, (64, 64), (0, 0, 0), swapRB=True, crop=False)
 
-        net = self.match_net()
+        net = await self.match_net()
         if net is None:
             raise ResourceWarning(f"""
                 The remote network does not exist or the local cache has expired.
@@ -268,8 +268,8 @@ class ResNetFactory(ModelHub):
             return True
         return False
 
-    def solution(self, img_stream, **kwargs) -> bool:
-        return self.classifier(img_stream, feature_filters=None)
+    async def solution(self, img_stream, **kwargs) -> bool:
+        return await self.classifier(img_stream, feature_filters=None)
 
 class PluggableONNXModels:
     def __init__(self, path_objects_yaml: str, dir_model: str, lang: Optional[str] = "en"):
@@ -412,7 +412,7 @@ class YOLO:
     async def pull_model(self):
         await self.modelhub.pull_model()
 
-    def detect_common_objects(self, img: np.ndarray, confidence=0.4, nms_thresh=0.4):
+    async def detect_common_objects(self, img: np.ndarray, confidence=0.4, nms_thresh=0.4):
         height, width = img.shape[:2]
 
         class_ids = []
@@ -421,7 +421,7 @@ class YOLO:
 
         blob = cv2.dnn.blobFromImage(img, 1 / 255.0, (128, 128), (0, 0, 0), swapRB=True, crop=False)
 
-        net = self.modelhub.match_net()
+        net = await self.modelhub.match_net()
         net.setInput(blob)
         outs = net.forward()
 
@@ -445,7 +445,7 @@ class YOLO:
 
         return [str(self.classes[class_ids[i]]) for i in indices]
 
-    def solution(self, img_stream: bytes, label: str, **kwargs) -> bool:
+    async def solution(self, img_stream: bytes, label: str, **kwargs) -> bool:
         confidence = kwargs.get("confidence", 0.4)
         nms_thresh = kwargs.get("nms_thresh", 0.4)
 
@@ -453,7 +453,7 @@ class YOLO:
         img = cv2.imdecode(np_array, flags=1)
         img = cv2.fastNlMeansDenoisingColored(img, None, 10, 10, 7, 21) if img.shape[0] == ChallengeStyle.WATERMARK else img
         try:
-            labels = self.detect_common_objects(img, confidence, nms_thresh)
+            labels = await self.detect_common_objects(img, confidence, nms_thresh)
             return bool(label in labels)
         except ValueError:
             return False

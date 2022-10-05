@@ -13,7 +13,7 @@ from urllib.parse import urlparse
 from aiohttp import ClientSession
 from selenium.webdriver import Chrome, ChromeOptions
 from selenium.webdriver.chrome.service import Service
-from asyncio import get_event_loop
+from asyncio import get_event_loop, sleep as asleep
 from .utils import mouse_curve, getUrl
 from .autosolver import AutoSolver
 
@@ -365,13 +365,10 @@ class AioHcaptcha:
     async def autosolve(self, question, tasklist):
         answers = {}
         solver = await AutoSolver().init()
-
-        def _solve(data, question):
-            return solver.solve(data, question)
             
         for uuid, url in tasklist.items():
             data = await getUrl(url, False)
-            result = await get_event_loop().run_in_executor(ThreadPoolExecutor(2), _solve, data, question)
+            result = await solver.solve(data, question)
             answers[uuid] = "true" if result else "false"
 
         return answers

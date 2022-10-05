@@ -73,11 +73,11 @@ class AutoSolver:
         else:
             return label_cleaning(_label)
 
-    def solve(self, image: bytes, question: str) -> bool:
+    async def solve(self, image: bytes, question: str) -> bool:
         label = self._get_label(question)
         label_alias = self.label_alias.get(label)
         if label_alias not in self.pom_handler.fingers:
             model = YOLO("./assets/", None)
         else:
             model = self.pom_handler.lazy_loading(label_alias)
-        return model.solution(img_stream=image, label=self.label_alias[label])
+        return await model.solution(img_stream=image, label=self.label_alias[label])
