@@ -6,7 +6,6 @@
 from json import load as jload, dump as jdump, JSONDecodeError
 from shutil import move
 from time import time
-from asyncio import run as arun
 from os.path import join as pjoin, isfile, basename, exists, getsize
 from logging import getLogger
 from aiohttp import ClientSession

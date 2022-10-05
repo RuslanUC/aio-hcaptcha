@@ -37,7 +37,7 @@ async def main():
     print(resp)
 
 if __name__ == "__main__":
-    from asyncio import get_event_loop, sleep as asleep
+    from asyncio import get_event_loop
     get_event_loop().run_until_complete(main())
 
 ```
@@ -53,10 +53,24 @@ async def main():
     print(resp)
 
 if __name__ == "__main__":
-    from asyncio import get_event_loop, sleep as asleep
+    from asyncio import get_event_loop
+    get_event_loop().run_until_complete(main())
+```
+
+### Captcha with rqdata example
+```py
+from async_hcaptcha import AioHcaptcha
+
+async def main():
+    solver = AioHcaptcha("a5f74b19-9e45-40e0-b45d-47ff91b7a6c2", "https://accounts.hcaptcha.com/demo",
+                         {"executable_path": "chromedriver.exe"})
+    resp = await solver.solve(custom_params={"rqdata": "xHJHshn3p71FcYoVCW5zA3m2CFw59JXBecFaR2l90z/NjjoYaXq2FBTi05LPnOX1v/MwStZg9DZKQA4f4ExkDjwlMaS3AKGIrcb2rUKsg8nDI9IaXEFDAhWqvuuCuaW3urxO2J1B/NEkfS938O58cqrE00aPILCQPUHVU1l/Ek8"})
+    print(resp)
+
+if __name__ == "__main__":
+    from asyncio import get_event_loop
     get_event_loop().run_until_complete(main())
 ```
 
 # TODO
   - Make hsw solving without selenium
-  - Add custom parameters support (captcha_rqdata)

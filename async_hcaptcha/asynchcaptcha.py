@@ -373,7 +373,9 @@ class AioHcaptcha:
 
         return answers
 
-    async def solve(self):
+    async def solve(self, *, custom_params=None):
+        if not custom_params:
+            custom_params = {}
         self._start = int(time() * 1000 - 2000)
         sess = ClientSession(headers={
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/105.0.0.0 Safari/537.36"
@@ -393,7 +395,8 @@ class AioHcaptcha:
             "hl": "en-US",
             "n": await self._getN(),
             "c": jdumps(self._c),
-            "motionData": await self._getMotionData()
+            "motionData": await self._getMotionData(),
+            **custom_params
         }, headers={"Content-Type": "application/x-www-form-urlencoded"})
 
         captcha = await captcha.json()
