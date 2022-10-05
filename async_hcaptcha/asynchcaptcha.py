@@ -15,18 +15,21 @@ from selenium.webdriver import Chrome, ChromeOptions
 from selenium.webdriver.chrome.service import Service
 from asyncio import get_event_loop
 from .utils import mouse_curve, getUrl
+from .autosolver import AutoSolver
 
 class AioHcaptcha:
-    def __init__(self, sitekey, url, captcha_callback, chromedriver_args):
+    def __init__(self, sitekey, url, chromedriver_args, captcha_callback=None, autosolve=False):
         self.sitekey = sitekey
         self.url = url
         self.domain = urlparse(url).netloc
         self.chromedriver_args = chromedriver_args
 
+        autosolve = autosolve or not captcha_callback
+
         self._c = None
         self._start = None
         self._script = {}
-        self._question_callback = captcha_callback
+        self._question_callback = captcha_callback if not autosolve else self.autosolve
 
     async def _getN(self) -> str:
         if self._c["type"] == "hsw":
@@ -358,6 +361,20 @@ class AioHcaptcha:
             s = (t - time() * 1000) / 1000
             await asleep(s)
         return j
+
+    async def autosolve(self, question, tasklist):
+        answers = {}
+        solver = await AutoSolver().init()
+
+        def _solve(data, question):
+            return solver.solve(data, question)
+            
+        for uuid, url in tasklist.items():
+            data = await getUrl(url, False)
+            result = await get_event_loop().run_in_executor(ThreadPoolExecutor(2), _solve, data, question)
+            answers[uuid] = "true" if result else "false"
+
+        return answers
 
     async def solve(self):
         self._start = int(time() * 1000 - 2000)

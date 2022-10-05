@@ -44,5 +44,4 @@ if __name__ == "__main__":
 
 # TODO
   - Make hsw solving without selenium
-  - Add automatic solver
   - Add custom parameters support (captcha_rqdata)
