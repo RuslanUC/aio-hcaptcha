@@ -1,3 +1,4 @@
+import re
 from base64 import b64decode
 from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
@@ -29,6 +30,7 @@ class AioHcaptcha:
         self._c = None
         self._start = None
         self._script = {}
+        self._version = "21130e0"
         self._question_callback = captcha_callback if not autosolve else self.autosolve
 
     async def _getN(self) -> str:
@@ -376,12 +378,20 @@ class AioHcaptcha:
     async def solve(self, *, custom_params=None):
         if not custom_params:
             custom_params = {}
+
         self._start = int(time() * 1000 - 2000)
         sess = ClientSession(headers={
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/105.0.0.0 Safari/537.36"
         })
+
+        api_js = await sess.get("https://js.hcaptcha.com/1/api.js")
+        api_js = await api_js.text()
+        versions = re.findall('captcha\\/v1\\/([a-z0-9]{4,8})\\/static', api_js)
+        if versions:
+            self._version = versions[0]
+
         siteconfig = await sess.post("https://hcaptcha.com/checksiteconfig", params={
-            "v": "1f7dc62",
+            "v": self._version,
             "host": self.domain,
             "sitekey": self.sitekey,
             "sc": 1,
@@ -389,7 +399,7 @@ class AioHcaptcha:
         })
         self._c = (await siteconfig.json())["c"]
         captcha = await sess.post(f"https://hcaptcha.com/getcaptcha/{self.sitekey}", data={
-            "v": "1f7dc62",
+            "v": self._version,
             "host": self.domain,
             "sitekey": self.sitekey,
             "hl": "en-US",
@@ -411,7 +421,7 @@ class AioHcaptcha:
 
         res = await sess.post(f"https://hcaptcha.com/checkcaptcha/{self.sitekey}/{key}", json={
             "answers": answers,
-            "v": "1f7dc62",
+            "v": self._version,
             "serverdomain": self.domain,
             "job_mode": "image_label_binary",
             "c": jdumps(self._c),
