@@ -9,7 +9,7 @@ from json import loads as jloads
 from math import ceil, floor
 from random import randint
 from time import time
-from typing import List
+from typing import List, Tuple
 from urllib.parse import urlparse
 from aiohttp import ClientSession
 from selenium.webdriver import Chrome, ChromeOptions
@@ -17,6 +17,81 @@ from selenium.webdriver.chrome.service import Service
 from asyncio import get_event_loop, sleep as asleep
 from .utils import mouse_curve, getUrl
 from .autosolver import AutoSolver
+
+class MotionData:
+    def __init__(self, x=0, y=0, controller=None):
+        self._point = (x, y)
+        self._meanPeriod = 0
+        self._meanCounter = 0
+        self._data = []
+        self._controller = controller
+
+    @property
+    def timestamp(self):
+        return self._controller.timestamp
+
+    @timestamp.setter
+    def timestamp(self, val):
+        self._controller.timestamp = val
+
+    def moveTo(self, x, y, s):
+        curve = mouse_curve(self._point, (x, y), s)
+        for pt in curve:
+            self.addPoint(*pt)
+        self._point = self._data[-1][:2]
+
+    def addPoint(self, x, y):
+        self.timestamp += randint(20, 40)
+        self._data.append([x, y, self.timestamp])
+        if self._meanCounter != 0:
+            delta = self._data[-1][2] - self._data[-2][2]
+            self._meanPeriod = (self._meanPeriod * self._meanCounter + delta) / (self._meanCounter + 1)
+        self._meanPeriod += 1
+
+    @property
+    def data(self):
+        return self._data
+
+    @property
+    def mp(self):
+        return self._meanPeriod
+
+    @property
+    def point(self):
+        return self._point
+
+class MotionController:
+    def __init__(self, timestamp: int, start_point: Tuple[int, int]):
+        self.timestamp = timestamp or time()
+        self._mm = MotionData(*start_point, controller=self)
+        self._md = MotionData(controller=self)
+        self._mu = MotionData(controller=self)
+
+        self._lastPoint = start_point
+
+    def move(self, x, y, s):
+        self._mm.moveTo(x, y, s)
+        self._lastPoint = self._mm.point
+
+    def click(self, x=0, y=0):
+        if not x and not y:
+            x, y = self._lastPoint
+        self._md.addPoint(x, y)
+        self._mu.addPoint(x, y)
+        self._lastPoint = (x, y)
+
+    def get(self, mm=True, md=True, mu=True):
+        r = {}
+        if mm:
+            r["mm"] = self._mm.data
+            r["mm-mp"] = self._mm.mp
+        if md:
+            r["md"] = self._md.data
+            r["md-mp"] = self._md.mp
+        if mu:
+            r["mu"] = self._mu.data
+            r["mu-mp"] = self._mu.mp
+        return r
 
 class AioHcaptcha:
     def __init__(self, sitekey, url, chromedriver_args, captcha_callback=None, autosolve=False):
@@ -206,7 +281,11 @@ class AioHcaptcha:
                     ]
                 },
                 "dr": "",
-                "exec": False
+                "exec": False,
+                "wn": [],
+                "wn-mp": 0,
+                "xy": [],
+                "xy-mp": 0,
             },
             "session": [],
             "widgetList": ["099kzxm1krnm"],
@@ -220,121 +299,37 @@ class AioHcaptcha:
             }
         }
 
-    def _getMp(self, arr: List[List[int]]) -> float:
-        mp = 0
-        count = 0
-        for idx, item in enumerate(arr):
-            if idx == 0:
-                continue
-            delta = item[2] - arr[idx - 1][2]
-            mp = (mp * count + delta) / (count + 1)
-            count += 1
-        return mp
-
     async def _getMotionData(self):
         j = self._motionData
 
-        curve = mouse_curve(
-            (randint(0, 480), randint(0, 270)),
-            (randint(1440, 1920), randint(810, 1022)),
-            35
-        )
-        idx = randint(23, 30)
-        mm = deepcopy(curve[:idx])
-        md = curve[idx].copy()
-        mu = curve[idx].copy()
-        ctime = j["st"]
-        for m in mm:
-            ctime += randint(20, 40)
-            m.append(ctime)
-        ctime += randint(30, 50)
-        md.append(ctime)
-        ctime += randint(30, 50)
-        mu.append(ctime)
-        md = [md]
-        mu = [mu]
-        j["mm"] = mm
-        j["mm-mp"] = self._getMp(mm)
-        j["md"] = md
-        j["md-mp"] = self._getMp(md)
-        j["mu"] = mu
-        j["mu-mp"] = self._getMp(mu)
+        mc = MotionController(j["st"], (randint(0, 480), randint(0, 270)))
+        mc.move(randint(1440, 1920), randint(810, 1022), 35)
+        mc.click()
+        j.update(**mc.get())
 
-        curve = mouse_curve(
-            (randint(0, 480), randint(0, 270)),
-            (randint(1440, 1920), randint(810, 1022)),
-            70
-        )
-        idx = randint(60, 70)
-        mm = curve[:idx]
-        ctime = self._start + 1000 + randint(100, 150)
-        for m in mm:
-            ctime += randint(20, 40)
-            m.append(ctime)
-        j["topLevel"]["mm"] = mm
-        j["topLevel"]["mm-mp"] = self._getMp(mm)
+        tmm = MotionController(self._start + 1000 + randint(100, 150), (randint(0, 480), randint(0, 270)))
+        tmm.move(randint(1440, 1920), randint(810, 1022), 70)
 
-        j["topLevel"]["wn"] = []
-        j["topLevel"]["wn-mp"] = 0
-        j["topLevel"]["xy"] = []
-        j["topLevel"]["xy-mp"] = 0
+        j["topLevel"].update(tmm.get(md=False, mu=False))
         return j
 
     async def _getMotionDataForSolved(self, answers):
         j = self._motionData
         j["dct"] = j["st"]
-        mm = []
-        md = []
-        mu = []
         ans = list(answers.values())
         sx = randint(300, 500)
         sy = randint(150, 300)
-        lastp = sx, sy
-        st = j["st"] + randint(50, 150)
 
-        tc = mouse_curve(
-            (randint(1440, 1920), randint(810, 1022)),
-            (randint(0, 480), randint(0, 270)),
-            40
-        )
-        idx = randint(30, 38)
-        tmm = deepcopy(tc[:idx])
-        tmd = tc[idx].copy()
-        tmu = tc[idx].copy()
-        ctime = self._start
-        for m in tmm:
-            ctime += randint(20, 40)
-            m.append(ctime)
-        ctime += randint(30, 50)
-        tmd.append(ctime)
-        ctime += randint(30, 50)
-        tmu.append(ctime)
-        tmd = [tmd]
-        tmu = [tmu]
-        j["topLevel"]["mm"] = tmm
-        j["topLevel"]["mm-mp"] = self._getMp(tmm)
-        j["topLevel"]["md"] = tmd
-        j["topLevel"]["md-mp"] = self._getMp(tmd)
-        j["topLevel"]["mu"] = tmu
-        j["topLevel"]["mu-mp"] = self._getMp(tmu)
-        j["topLevel"]["wn"] = []
-        j["topLevel"]["wn-mp"] = 0
-        j["topLevel"]["xy"] = []
-        j["topLevel"]["xy-mp"] = 0
+        mc = MotionController(self._start, (randint(1440, 1920), randint(810, 1022)))
+        mc.move(randint(0, 480), randint(0, 270), 40)
+        mc.click()
+        j["topLevel"].update(**mc.get())
 
+        mc = MotionController(j["st"] + randint(50, 150), (sx, sy))
         for idx, ans in enumerate(ans):
             if idx == 9:
-                pn = randint(330, 370), randint(420, 460)
-                curve = mouse_curve(lastp, pn, randint(10, 15))
-                for c in curve:
-                    c.append(st)
-                    st += randint(10, 20)
-                mm += curve
-                md.append([pn[0], pn[1], st])
-                st += randint(20, 30)
-                mu.append([pn[0], pn[1], st])
-                st += randint(10, 20)
-                lastp = pn
+                mc.move(randint(330, 370), randint(420, 460), randint(10, 15))
+                mc.click()
             if ans == "true":
                 row = ceil(round((idx + 1) / 3))
                 col = (idx + 1) % 3
@@ -342,23 +337,10 @@ class AioHcaptcha:
                     col = 3
                 x = sx + 80 * row + randint(80, 160)
                 y = sy + 80 * col + randint(80, 160)
-                curve = mouse_curve(lastp, (x, y), randint(10, 15))
-                for c in curve:
-                    c.append(st)
-                    st += randint(10, 20)
-                mm += curve
-                md.append([x, y, st])
-                st += randint(20, 30)
-                mu.append([x, y, st])
-                st += randint(10, 20)
-                lastp = x, y
-        j["mm"] = mm
-        j["md"] = md
-        j["mu"] = mu
-        j["mm-mp"] = self._getMp(mm)
-        j["md-mp"] = self._getMp(md)
-        j["mu-mp"] = self._getMp(mu)
-        t = mm[-1][2]
+                mc.move(x, y, randint(10, 15))
+                mc.click()
+        j.update(**mc.get())
+        t = j["mm"][-1][2]
         if t / 1000 > time():
             s = (t - time() * 1000) / 1000
             await asleep(s)
