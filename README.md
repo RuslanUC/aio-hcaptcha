@@ -74,3 +74,5 @@ if __name__ == "__main__":
 
 # TODO
   - Make hsw solving without selenium
+  
+### Async-hcaptcha using code from [hcaptcha-challenger](https://github.com/QIN2DIM/hcaptcha-challenger/tree/main/src/services/hcaptcha_challenger/solutions) and [py-hcaptcha](https://github.com/AcierP/py-hcaptcha/blob/main/hcaptcha/proofs/hsl.py).
