@@ -12,6 +12,9 @@ from async_hcaptcha import AioHcaptcha
 from async_hcaptcha.utils import getUrl
 
 async def getAnswers(question, tasklist):
+    from os import makedirs
+    makedirs(captcha_images)
+
     answers = {}
 
     tl = {str(i): list(tasklist.keys())[i] for i in range(len(tasklist.keys()))}
@@ -31,8 +34,8 @@ async def getAnswers(question, tasklist):
     return answers
 
 async def main():
-    solver = AioHcaptcha("a5f74b19-9e45-40e0-b45d-47ff91b7a6c2", "https://accounts.hcaptcha.com/demo", getAnswers,
-                         {"executable_path": "chromedriver.exe"})
+    solver = AioHcaptcha("a5f74b19-9e45-40e0-b45d-47ff91b7a6c2", "https://accounts.hcaptcha.com/demo",
+                         {"executable_path": "chromedriver.exe"}, getAnswers)
     resp = await solver.solve()
     print(resp)
 
