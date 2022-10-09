@@ -1,6 +1,9 @@
 from ._autosolver import PluggableObjects, YOLO, PluggableONNXModels
 import re
 
+class AutoSolverException(Exception):
+    pass
+
 class AutoSolver:
     BAD_CODE = {
         "а": "a",
@@ -80,4 +83,7 @@ class AutoSolver:
             model = YOLO("./assets/", None)
         else:
             model = self.pom_handler.lazy_loading(label_alias)
-        return await model.solution(img_stream=image, label=self.label_alias[label])
+        try:
+            return await model.solution(img_stream=image, label=self.label_alias[label])
+        except KeyError:
+            raise AutoSolverException()

@@ -1,26 +1,33 @@
 import re
-from asyncio import get_event_loop, sleep as asleep
+from asyncio import get_event_loop, sleep as asleep, create_subprocess_shell, subprocess
 from base64 import b64decode
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from hashlib import sha1
-from json import dumps as jdumps
-from json import loads as jloads
+from json import dumps as jdumps, loads as jloads
 from logging import getLogger
 from math import ceil, floor
 from random import randint, choice
 from time import time
 from typing import Tuple
 from urllib.parse import urlparse
+from os.path import join as pjoin, dirname, realpath
 
 from aiohttp import ClientSession
 from selenium.webdriver import Chrome, ChromeOptions
 from selenium.webdriver.chrome.service import Service
 
-from .autosolver import AutoSolver
+from .autosolver import AutoSolver, AutoSolverException
 from .utils import mouse_curve, getUrl
 
 log = getLogger("AsyncHcaptcha")
+
+with open(pjoin(dirname(realpath(__file__)), "window.js")) as f:
+    w = f.read()
+    w = w.replace("  ", "")
+    w = w.replace("\n", "")
+    w += ";const window = new Window();"
+_WINDOW = w
 
 class MotionData:
     def __init__(self, x=0, y=0, controller=None):
@@ -98,11 +105,13 @@ class MotionController:
         return r
 
 class AioHcaptcha:
-    def __init__(self, sitekey, url, chromedriver_args, captcha_callback=None, autosolve=False):
+    def __init__(self, sitekey, url, args, captcha_callback=None, autosolve=False):
         self.sitekey = sitekey
         self.url = url
         self.domain = urlparse(url).netloc
-        self.chromedriver_args = chromedriver_args
+        if "node" not in args and "chromedriver" not in args:
+            raise AttributeError("")
+        self.args = args
 
         autosolve = autosolve or not captcha_callback
 
@@ -115,7 +124,7 @@ class AioHcaptcha:
         self._retries = 0
 
         log.debug(f"Initialized {self.__class__.__name__} with "
-                  f"sitekey={self.sitekey}, url={self.url}, domain={self.domain}, chromedriver_args={self.chromedriver_args}, "
+                  f"sitekey={self.sitekey}, url={self.url}, domain={self.domain}, args={self.args}, "
                   f"autosolve={autosolve}, _question_callback={self._question_callback}.")
 
     async def _getN(self) -> str:
@@ -136,21 +145,37 @@ class AioHcaptcha:
         token = self._req["req"]
         script = self._script[f"hsw_{sc}"]
 
-        def _hsw():
-            log.debug("Running chromedriver.")
-            options = ChromeOptions()
-            options.add_argument("--headless")
-            options.add_argument("--disable-gpu")
-            options.add_argument("--disable-extensions")
-            options.add_argument("--no-sandbox")
-            options.add_argument("--disable-dev-shm-usage")
-            options.add_experimental_option('excludeSwitches', ['enable-logging'])
-            driver = Chrome(service=Service(**self.chromedriver_args), options=options)
-            res = driver.execute_script(f"{script}\n\nreturn await hsw(\"{token}\");")
-            log.debug(f"Got proof result: {res}. Closing chromedriver...")
-            driver.close()
+        async def _hsw_node():
+            proc = await create_subprocess_shell(self.args["node"]+" -", stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+            stdout, _ = await proc.communicate((_WINDOW + "\n\n" + script + "\n\nasync function idk(){" + f"console.log(await hsw(\"{token}\"));" + "}\nidk();").encode("utf8"))
+            data = stdout.decode("utf8").strip()
+            return data
+
+        async def _hsw_chromedriver():
+            def _hsw():
+                log.debug("Running chromedriver.")
+                options = ChromeOptions()
+                options.add_argument("--headless")
+                options.add_argument("--disable-gpu")
+                options.add_argument("--disable-extensions")
+                options.add_argument("--no-sandbox")
+                options.add_argument("--disable-dev-shm-usage")
+                options.add_experimental_option('excludeSwitches', ['enable-logging'])
+                driver = Chrome(service=Service(executable_path=self.args["chromedriver"]), options=options)
+                res = driver.execute_script(f"{script}\n\nreturn await hsw(\"{token}\");")
+                log.debug(f"Got proof result: {res}. Closing chromedriver...")
+                driver.close()
+                return res
+            return await get_event_loop().run_in_executor(ThreadPoolExecutor(4), _hsw)
+
+        if "node" in self.args:
+            res = await _hsw_node()
+            if not res:
+                if "chromedriver" in self.args:
+                    return await _hsw_chromedriver()
             return res
-        return await get_event_loop().run_in_executor(ThreadPoolExecutor(4), _hsw)
+        elif "chromedriver" in self.args:
+            return await _hsw_chromedriver()
 
     async def _solve_hsl(self) -> str: # From https://github.com/AcierP/py-hcaptcha/blob/main/hcaptcha/proofs/hsl.py
         x  = "0123456789/:abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
@@ -392,7 +417,12 @@ class AioHcaptcha:
 
         log.debug(f"Question: {captcha['requester_question']['en']}")
         self._start = int(time() * 1000 - 2000)
-        answers = await self._question_callback(captcha["requester_question"]["en"], tasklist) # Get answers
+        try:
+            answers = await self._question_callback(captcha["requester_question"]["en"], tasklist) # Get answers
+        except AutoSolverException:
+            log.debug(f"Can't solve this captcha. Retrying...")
+            self._retries += 1
+            return await self.solve(retry_count, custom_params)
         log.debug(f"Got answers: {answers}, sending to /checkcaptcha/{self.sitekey}/{key}")
 
         # Send answers

@@ -12,8 +12,10 @@ requirements = [
 
 setup(
     name='async-hcaptcha',
-    version='1.0.0b7',
+    version='1.0.0b8',
     packages=["async_hcaptcha"],
+    package_data={'': ['window.js']},
+    include_package_data=True,
     long_description=open(join(dirname(__file__), 'README.md')).read(),
     long_description_content_type="text/markdown",
     description='Unofficial async wrapper for interacting with hCaptcha',
