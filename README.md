@@ -13,7 +13,7 @@ from async_hcaptcha.utils import getUrl
 
 async def getAnswers(question, tasklist):
     from os import makedirs
-    makedirs(captcha_images)
+    makedirs("captcha_images")
 
     answers = {}
 
