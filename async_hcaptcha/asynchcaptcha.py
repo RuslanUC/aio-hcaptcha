@@ -109,6 +109,9 @@ class AioHcaptcha:
         self.sitekey = sitekey
         self.url = url
         self.domain = urlparse(url).netloc
+        if "executable_path" in args:
+            args["chromedriver"] = args["executable_path"]
+            del args["executable_path"]
         if "node" not in args and "chromedriver" not in args:
             raise AttributeError("")
         self.args = args
