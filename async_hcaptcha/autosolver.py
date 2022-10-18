@@ -86,4 +86,5 @@ class AutoSolver:
         try:
             return await model.solution(img_stream=image, label=self.label_alias[label])
         except KeyError:
+            print(f"Can't find model for {label}")
             raise AutoSolverException()
