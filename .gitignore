@@ -3,3 +3,5 @@ __pycache__
 test_*
 test/
 .idea
+*.egg-info
+dist

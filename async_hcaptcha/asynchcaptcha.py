@@ -12,13 +12,14 @@ from time import time
 from typing import Tuple
 from urllib.parse import urlparse
 from os.path import join as pjoin, dirname, realpath
-
 from aiohttp import ClientSession
 from selenium.webdriver import Chrome, ChromeOptions
 from selenium.webdriver.chrome.service import Service
 
-from .autosolver import AutoSolver, AutoSolverException
 from .utils import mouse_curve, getUrl
+
+import hcaptcha_challenger
+hcaptcha_challenger.logger.remove() # TODO: Redirect logs from loguru to logging or use loguru instead of logging
 
 log = getLogger("AsyncHcaptcha")
 
@@ -105,7 +106,7 @@ class MotionController:
         return r
 
 class AioHcaptcha:
-    def __init__(self, sitekey, url, args, captcha_callback=None, autosolve=False):
+    def __init__(self, sitekey, url, args, captcha_callback=None, autosolve=False, headers=None):
         self.sitekey = sitekey
         self.url = url
         self.domain = urlparse(url).netloc
@@ -115,6 +116,7 @@ class AioHcaptcha:
         if "node" not in args and "chromedriver" not in args:
             raise AttributeError("")
         self.args = args
+        self.headers = headers
 
         autosolve = autosolve or not captcha_callback
 
@@ -341,15 +343,25 @@ class AioHcaptcha:
     async def autosolve(self, question: str, tasklist: dict) -> dict:
         log.debug("Solving captcha with AutoSolver.")
         answers = {}
-        solver = await AutoSolver().init()
-            
-        for uuid, url in tasklist.items():
-            data = await getUrl(url, False)
-            result = await solver.solve(data, question)
-            answers[uuid] = "true" if result else "false"
 
-        log.debug(f"AutoSolver answers: {answers}")
-        return answers
+        imgs = []
+        for uuid, url in tasklist.items():
+            imgs.append(await getUrl(url, False))
+
+        def _autosolve():
+            hcaptcha_challenger.install()
+            challenger = hcaptcha_challenger.new_challenger()
+            if res := challenger.classify(question, imgs):
+                return res
+
+        res = await get_event_loop().run_in_executor(ThreadPoolExecutor(4), _autosolve)
+        log.debug(f"AutoSolver result: {res}")
+        if res:
+            for idx, uuid in enumerate(tasklist.keys()):
+                answers[uuid] = "true" if res[idx] else "false"
+
+            log.debug(f"Answers: {answers}")
+            return answers
 
     async def solve(self, retry_count=1, custom_params=None):
         if not custom_params:
@@ -369,6 +381,7 @@ class AioHcaptcha:
             "Sec-Fetch-Mode": "cors",
             "Sec-Fetch-Dest": "empty",
             "Accept-Language": "en-US,en;q=0.9",
+            **(self.headers if isinstance(self.headers, dict) else {})
         })
 
         # Get latest hcaptcha version code
@@ -420,9 +433,7 @@ class AioHcaptcha:
 
         log.debug(f"Question: {captcha['requester_question']['en']}")
         self._start = int(time() * 1000 - 2000)
-        try:
-            answers = await self._question_callback(captcha["requester_question"]["en"], tasklist) # Get answers
-        except AutoSolverException:
+        if (answers := await self._question_callback(captcha["requester_question"]["en"], tasklist)) is None: # Get answers
             log.debug(f"Can't solve this captcha. Retrying...")
             self._retries += 1
             return await self.solve(retry_count, custom_params)

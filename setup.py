@@ -12,7 +12,7 @@ requirements = [
 
 setup(
     name='async-hcaptcha',
-    version='1.0.0b8',
+    version='1.0.0b9',
     packages=["async_hcaptcha"],
     package_data={'': ['window.js']},
     include_package_data=True,
