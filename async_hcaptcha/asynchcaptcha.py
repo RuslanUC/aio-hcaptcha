@@ -19,7 +19,8 @@ from selenium.webdriver.chrome.service import Service
 from .utils import mouse_curve, getUrl
 
 import hcaptcha_challenger
-hcaptcha_challenger.logger.remove() # TODO: Redirect logs from loguru to logging or use loguru instead of logging
+if hasattr(hcaptcha_challenger, "logger"):
+    hcaptcha_challenger.logger.remove() # TODO: Redirect logs from loguru to logging or use loguru instead of logging
 
 log = getLogger("AsyncHcaptcha")
 
