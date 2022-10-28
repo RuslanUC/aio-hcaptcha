@@ -4,15 +4,12 @@ from os.path import join, dirname
 requirements = [
     "aiohttp~=3.8.1",
     "selenium~=4.1.5",
-    "opencv-python~=4.5.5.62",
-    "numpy==1.21.5",
-    "scikit-image~=0.19.3",
-    "pyyaml~=6.0",
+    "hcaptcha_challenger",
 ]
 
 setup(
     name='async-hcaptcha',
-    version='1.0.0b9',
+    version='1.0.0b11',
     packages=["async_hcaptcha"],
     package_data={'': ['window.js']},
     include_package_data=True,
